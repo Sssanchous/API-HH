@@ -2,11 +2,7 @@ import requests
 import os
 from terminaltables import AsciiTable
 from dotenv import load_dotenv
-load_dotenv()
-HH_URL = 'https://api.hh.ru/vacancies'
-SJ_URL = 'https://api.superjob.ru/2.0/vacancies/'
-API_APP_ID = os.getenv("API_APP_ID")
-HEADERS = {'X-Api-App-Id': API_APP_ID}
+
 
 def predict_rub_salary_hh(vacancy):
     sal = vacancy.get('salary')
@@ -108,7 +104,13 @@ def print_statistics_table(stats, title):
     print(table.table)
 
 
-def main():
+if __name__ == '__main__':
+    load_dotenv('secret.env')
+    HH_URL = 'https://api.hh.ru/vacancies'
+    SJ_URL = 'https://api.superjob.ru/2.0/vacancies/'
+    API_APP_ID = os.getenv("API_APP_ID")
+    HEADERS = {'X-Api-App-Id': API_APP_ID}
+
     languages = ["Python", "JavaScript", "Java", "C#", "C++", "Go", "TypeScript", "Ruby", "PHP", "Kotlin"]
     hh_stats = {lang: analyze_language_hh(lang) for lang in languages}
     sj_stats = {lang: analyze_language_sj(lang) for lang in languages}
@@ -116,6 +118,3 @@ def main():
     print_statistics_table(hh_stats, 'HeadHunter Moscow')
     print()
     print_statistics_table(sj_stats, 'SuperJob Moscow')
-
-if __name__ == '__main__':
-    main()
