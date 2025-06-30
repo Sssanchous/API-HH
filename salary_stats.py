@@ -4,6 +4,10 @@ from terminaltables import AsciiTable
 from dotenv import load_dotenv
 
 
+HH_URL = 'https://api.hh.ru/vacancies'
+SJ_URL = 'https://api.superjob.ru/2.0/vacancies/'
+
+
 def predict_rub_salary_hh(vacancy):
     sal = vacancy.get('salary')
     if not sal or sal.get('currency') != 'RUR':
@@ -65,7 +69,7 @@ def predict_rub_salary_sj(vacancy):
 
 def analyze_language_sj(language):
     text = f"Программист {language}"
-    resp = requests.get(SJ_URL, headers=HEADERS, params={
+    resp = requests.get(SJ_URL, headers=headers, params={
         "town": 4, 
         "keyword": text, 
         "count": 1, 
@@ -78,7 +82,7 @@ def analyze_language_sj(language):
     processed = []
 
     while page * per_page < total_found:
-        resp = requests.get(SJ_URL, headers=HEADERS, params={
+        resp = requests.get(SJ_URL, headers=headers, params={
             "town": 4, 
             "keyword": text, 
             "count": per_page, 
@@ -106,10 +110,8 @@ def print_statistics_table(stats, title):
 
 if __name__ == '__main__':
     load_dotenv('secret.env')
-    HH_URL = 'https://api.hh.ru/vacancies'
-    SJ_URL = 'https://api.superjob.ru/2.0/vacancies/'
-    API_APP_ID = os.getenv("API_APP_ID")
-    HEADERS = {'X-Api-App-Id': API_APP_ID}
+    appi_app_id = os.getenv("API_APP_ID")
+    headers = {'X-Api-App-Id': appi_app_id}
 
     languages = ["Python", "JavaScript", "Java", "C#", "C++", "Go", "TypeScript", "Ruby", "PHP", "Kotlin"]
     hh_stats = {lang: analyze_language_hh(lang) for lang in languages}
