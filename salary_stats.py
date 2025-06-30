@@ -6,97 +6,111 @@ from dotenv import load_dotenv
 
 HH_URL = 'https://api.hh.ru/vacancies'
 SJ_URL = 'https://api.superjob.ru/2.0/vacancies/'
+AREA_MOSCOW = 1
+TOWN_MOSCOW = 4
+
+def calculate_salary(salary_from, salary_to):
+    if salary_from and salary_to:
+        return (salary_from + salary_to) / 2
+    if salary_from:
+        return salary_from * 1.2
+    if salary_to:
+        return salary_to * 0.8
 
 
 def predict_rub_salary_hh(vacancy):
-    sal = vacancy.get('salary')
-    if not sal or sal.get('currency') != 'RUR':
-        return None
-    low, high = sal.get('from'), sal.get('to')
-    if low is not None and high is not None:
-        return (low + high) / 2
-    if low is not None:
-        return low * 1.2
-    if high is not None:
-        return high * 0.8
-    return None
+    salary = vacancy.get('salary')
+    if not salary or salary.get('currency') != 'RUR':
+        return
+    low_salary, high_salary = salary.get('from'), salary.get('to')
+    return calculate_salary(low_salary, high_salary)
 
 
 def analyze_language_hh(language):
     text = f"Программист {language}"
+    salary_predictions = []
 
-    resp = requests.get(HH_URL, params={
-        "area": 1,
-        "text": text, 
-        "page": 0, 
-        "per_page": 1
+    response = requests.get(HH_URL, params={
+        "area": AREA_MOSCOW,
+        "text": text,
+        "page": 0,
+        "per_page": 100
         })
-    total_found = resp.json().get('found', 0)
+    
+    vacancy_page = response.json()
+    total_found = vacancy_page.get('found', 0)
+    total_pages = vacancy_page.get('pages', 1)
 
-    per_page = 100
-    page = 0
-    processed = []
+    vacancies = vacancy_page.get('items', [])
+    for vacancy in vacancies:
+        salary = predict_rub_salary_hh(vacancy)
+        if salary:
+            salary_predictions.append(salary)
 
-    while page * per_page < total_found:
-        resp = requests.get(HH_URL, params={
-            "area": 1,
+    for page in range(1, total_pages):
+        response = requests.get(HH_URL, params={
+            "area": AREA_MOSCOW,
             "text": text,
             "page": page,
-            "per_page": per_page
+            "per_page": 100
         })
-        data = resp.json().get('items', [])
-        for vac in data:
-            sal = predict_rub_salary_hh(vac)
-            if sal is not None:
-                processed.append(sal)
-        page += 1
+        vacancies = response.json().get('items', [])
+        for vacancy in vacancies:
+            salary = predict_rub_salary_hh(vacancy)
+            if salary:
+                salary_predictions.append(salary)
 
-    avg = int(sum(processed) / len(processed)) if processed else None
-    return {"vacancies_found": total_found, "vacancies_processed": len(processed), "average_salary": avg}
-
+    average_salary = int(sum(salary_predictions) / len(salary_predictions)) if salary_predictions else None
+    return {
+        "vacancies_found": total_found,
+        "vacancies_processed": len(salary_predictions),
+        "average_salary": average_salary
+    }
 
 def predict_rub_salary_sj(vacancy):
-    frm = vacancy.get('payment_from', 0)
-    to  = vacancy.get('payment_to', 0)
-    if vacancy.get('currency') != 'rub' or (frm == 0 and to == 0):
-        return None
-    if frm and to:
-        return (frm + to) / 2
-    if frm:
-        return frm * 1.2
-    return to * 0.8
+    if vacancy.get('currency') != 'rub' or not (vacancy.get('payment_from') or vacancy.get('payment_to')):
+        return
+    salary_from = vacancy.get('payment_from', 0)
+    salary_to  = vacancy.get('payment_to', 0)
+    return calculate_salary(salary_from, salary_to)
 
 
 def analyze_language_sj(language):
     text = f"Программист {language}"
-    resp = requests.get(SJ_URL, headers=headers, params={
-        "town": 4, 
-        "keyword": text, 
-        "count": 1, 
-        "page": 0
-    })
-    total_found = resp.json().get('total', 0)
-
     per_page = 100
-    page = 0
-    processed = []
+    page = 1
+    salary_predictions = []
+
+    response = requests.get(SJ_URL, headers=headers, params={
+        "town": TOWN_MOSCOW, 
+        "keyword": text
+    })
+
+    vacancy_page = response.json()
+    total_found = vacancy_page.get('total', 0)
+    vacancies = vacancy_page.get('objects', [])
+
+    for vacancy in vacancies:
+        salary = predict_rub_salary_sj(vacancy)
+        if salary:
+            salary_predictions.append(salary)
 
     while page * per_page < total_found:
-        resp = requests.get(SJ_URL, headers=headers, params={
-            "town": 4, 
+        response = requests.get(SJ_URL, headers=headers, params={
+            "town": TOWN_MOSCOW, 
             "keyword": text, 
             "count": per_page, 
             "page": page
         })
-        data = resp.json().get('objects', [])
-        for vac in data:
-            sal = predict_rub_salary_sj(vac)
-            if sal is not None:
-                processed.append(sal)
+        vacancies = response.json().get('objects', [])
+        for vacancion in vacancies:
+            salary = predict_rub_salary_sj(vacancion)
+            if salary:
+                salary_predictions.append(salary)
         page += 1
 
-    avg = int(sum(processed) / len(processed)) if processed else None
-    return {"vacancies_found": total_found, "vacancies_processed": len(processed), "average_salary": avg}
+    average_salary = int(sum(salary_predictions) / len(salary_predictions)) if salary_predictions else None
+    return {"vacancies_found": total_found, "vacancies_processed": len(salary_predictions), "average_salary": average_salary}
 
 
 def print_statistics_table(stats, title):
