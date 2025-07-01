@@ -18,6 +18,10 @@ def calculate_salary(salary_from, salary_to):
         return salary_to * 0.8
 
 
+def extract_salaries(vacancies, predict_func):
+    return [predict_func(v) for v in vacancies if predict_func(v)]
+
+
 def predict_rub_salary_hh(vacancy):
     salary = vacancy.get('salary')
     if not salary or salary.get('currency') != 'RUR':
@@ -42,10 +46,7 @@ def analyze_language_hh(language):
     total_pages = vacancy_page.get('pages', 1)
 
     vacancies = vacancy_page.get('items', [])
-    for vacancy in vacancies:
-        salary = predict_rub_salary_hh(vacancy)
-        if salary:
-            salary_predictions.append(salary)
+    salary_predictions.extend(extract_salaries(vacancies, predict_rub_salary_hh))
 
     for page in range(1, total_pages):
         response = requests.get(HH_URL, params={
@@ -55,10 +56,7 @@ def analyze_language_hh(language):
             "per_page": 100
         })
         vacancies = response.json().get('items', [])
-        for vacancy in vacancies:
-            salary = predict_rub_salary_hh(vacancy)
-            if salary:
-                salary_predictions.append(salary)
+        salary_predictions.extend(extract_salaries(vacancies, predict_rub_salary_hh))
 
     average_salary = int(sum(salary_predictions) / len(salary_predictions)) if salary_predictions else None
     return {
@@ -90,23 +88,20 @@ def analyze_language_sj(language):
     total_found = vacancy_page.get('total', 0)
     vacancies = vacancy_page.get('objects', [])
 
-    for vacancy in vacancies:
-        salary = predict_rub_salary_sj(vacancy)
-        if salary:
-            salary_predictions.append(salary)
+    salary_predictions.extend(extract_salaries(vacancies, predict_rub_salary_sj))
 
-    while page * per_page < total_found:
+    while True:
         response = requests.get(SJ_URL, headers=headers, params={
             "town": TOWN_MOSCOW, 
             "keyword": text, 
             "count": per_page, 
             "page": page
         })
-        vacancies = response.json().get('objects', [])
-        for vacancion in vacancies:
-            salary = predict_rub_salary_sj(vacancion)
-            if salary:
-                salary_predictions.append(salary)
+        vacancy_page = response.json()
+        vacancies = vacancy_page.get('objects', [])
+        salary_predictions.extend(extract_salaries(vacancies, predict_rub_salary_sj))
+        if not vacancy_page.get("more"): 
+            break
         page += 1
 
     average_salary = int(sum(salary_predictions) / len(salary_predictions)) if salary_predictions else None
@@ -124,8 +119,8 @@ def print_statistics_table(stats, title):
 
 if __name__ == '__main__':
     load_dotenv('secret.env')
-    appi_app_id = os.getenv("API_APP_ID")
-    headers = {'X-Api-App-Id': appi_app_id}
+    sj_token = os.getenv("SJ_TOKEN")
+    headers = {'X-Api-App-Id': sj_token}
 
     languages = ["Python", "JavaScript", "Java", "C#", "C++", "Go", "TypeScript", "Ruby", "PHP", "Kotlin"]
     hh_stats = {lang: analyze_language_hh(lang) for lang in languages}
