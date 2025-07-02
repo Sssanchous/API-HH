@@ -19,7 +19,7 @@ def calculate_salary(salary_from, salary_to):
 
 
 def extract_salaries(vacancies, predict_func):
-    return [predict_func(v) for v in vacancies if predict_func(v)]
+    return list(filter(None, map(predict_func, vacancies)))
 
 
 def predict_rub_salary_hh(vacancy):
